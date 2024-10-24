@@ -3,195 +3,227 @@
  * @author @skinofstars Kevin Carmody
  * GPLv3 - http://www.gnu.org/copyleft/gpl.html
  *
- * this is really a command line app with no flags
- * for turning a bunch ofurls into an OPML file
+ * This is a command line app with no flags
+ * for turning a bunch of URLs into an OPML file.
  *
- * 1.takes input file of newline seperated urls, normally blogs
- * 2.finds (autodiscovery) associated rss of each url
- * 3.outputs an OPML file for you to use in a feed reader
+ * 1. Takes input file of newline-separated URLs, normally blogs.
+ * 2. Finds (autodiscovery) associated RSS of each URL.
+ * 3. Outputs an OPML file for you to use in a feed reader.
  */
 
-// file config
-$inputFile = "URLlist.txt";
-$outputFile = "blogroll.opml";
+/* ================================
+ *          Configuration Constants
+ * ================================ */
+
+// File config
+const INPUT_FILE = "URLlist.txt";
+const OUTPUT_FILE = "blogroll.opml";
 
 // OPML config
-$opmlTitle = "Some Select Blogs";
-$opmlOwnerName = "Author Name";
-$opmlOwnerEmail = "author@example.com";
+const OPML_TITLE = "Some Select Blogs";
+const OPML_OWNER_NAME = "Author Name";
+const OPML_OWNER_EMAIL = "author@example.com";
 
-/** no need to edit after this :) **/
-$inHandle = @fopen($inputFile, "r");//read-only
-$outHandle = @fopen($outputFile, "a");//append
-
-if ($inHandle && $outHandle) {
-    $headerOut = opmlHeader($opmlTitle,$opmlOwnerName,$opmlOwnerEmail);
-    fwrite($outHandle,$headerOut);
-
-    while (!feof($inHandle)) {
-        $buffer = fgets($inHandle, 4096);
-        $source = getFile($buffer);
-        $rssURL = getRSSLocation($source, $buffer);
-        $rssTitle = htmlentities(getTitleAlt($source));
-        if($rssURL){
-            if($rssTitle){
-                $entryOut = opmlEntry($rssURL,$rssTitle);
-                fwrite($outHandle,$entryOut);
-            } else {
-                $entryOut = opmlEntry($rssURL,$rssURL);
-                fwrite($outHandle,$entryOut);
-            }
-            //echo ".";//uncomment to print a dot to screen on each success, nice for seeing progress
-        } else {
-            echo "Fail on: ".$buffer;
-        }
-    }
-    $footerOut = opmlFooter();
-    fwrite($outHandle,$footerOut);
-
-    fclose($inHandle);
-    fclose($outHandle);
-} else {
-    if(!$inHandle){
-        echo 'not got a handle on input file: '.$inputFile."\n";
-        die;
-    }
-    if(!$outHandle){
-        echo 'not got a got handle on output file: '.$outputFile."\n";
-        die;
-    }
-}
-
-echo "\nAll done :)\n";
+/* ================================
+ *              Functions
+ * ================================ */
 
 /**
- * basic opml header
+ * Opens a file and returns the handle.
+ * @param string $filename
+ * @param string $mode
+ * @return resource
+ * @throws Exception
+ */
+function openFile($filename, $mode)
+{
+  $handle = @fopen($filename, $mode);
+  if (!$handle) {
+    throw new Exception('Cannot open file: ' . $filename);
+  }
+  return $handle;
+}
+
+/**
+ * Processes a URL and writes the OPML entry to the output file.
+ * @param string $url
+ * @param resource $outHandle
+ */
+function processUrl($url, $outHandle)
+{
+  $source = getFile($url);
+  $rssURL = getRSSLocation($source, $url);
+  $rssTitle = htmlentities(getTitleAlt($source));
+
+  if ($rssURL) {
+    $entryOut = opmlEntry($rssURL, $rssTitle ?: $rssURL);
+    fwrite($outHandle, $entryOut);
+  } else {
+    echo "Fail on: " . $url;
+  }
+}
+
+/**
+ * Generates the OPML header.
  * @param string $opmlTitle
  * @param string $opmlOwnerName
  * @param string $opmlOwnerEmail
  * @return string
  */
-function opmlHeader($opmlTitle,$opmlOwnerName,$opmlOwnerEmail){
-    $oheader = "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n"
-    ."<opml version=\"1.1\">\n"
-    ." <head>\n"
-    ."     <title>".$opmlTitle."</title>\n"
-    ."     <dateCreated>".date("r")."</dateCreated>\n"
-    ."     <ownerName>".$opmlOwnerName."</ownerName>\n"
-    ."     <ownerEmail>".$opmlOwnerEmail."</ownerEmail>\n"
-    ."     </head>\n"
-    ." <body>\n";
-    return $oheader;
+function opmlHeader($opmlTitle, $opmlOwnerName, $opmlOwnerEmail)
+{
+  return "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n"
+    . "<opml version=\"1.1\">\n"
+    . " <head>\n"
+    . "     <title>{$opmlTitle}</title>\n"
+    . "     <dateCreated>" . date("r") . "</dateCreated>\n"
+    . "     <ownerName>{$opmlOwnerName}</ownerName>\n"
+    . "     <ownerEmail>{$opmlOwnerEmail}</ownerEmail>\n"
+    . " </head>\n"
+    . " <body>\n";
 }
 
 /**
- * just returns a test footer
+ * Generates the OPML footer.
  * @return string
  */
-function opmlFooter(){
-    $ofooter = "  </body>\n"
-    ."</opml>";
-    return $ofooter;
+function opmlFooter()
+{
+  return "  </body>\n</opml>";
 }
 
 /**
- * creates an XML entry for the OPML file
+ * Generates an OPML entry.
  * @param string $feedURL
  * @param string $feedTitle
  * @return string
  */
-function opmlEntry($feedURL,$feedTitle){
-    $outline = "    <outline text=\"".$feedTitle."\" type=\"rss\" xmlUrl=\"".$feedURL."\"/>\n";
-    return $outline;
+function opmlEntry($feedURL, $feedTitle)
+{
+  return "    <outline text=\"{$feedTitle}\" type=\"rss\" xmlUrl=\"{$feedURL}\"/>\n";
 }
 
 /**
- * returns the page title extracted from source
+ * Extracts the title from the HTML source.
  * @param string $html
+ * @return string|null
+ */
+function getTitleAlt($html)
+{
+  if (preg_match('/<title>(.*?)<\/title>/is', $html, $found)) {
+    return $found[1];
+  }
+  return null;
+}
+
+/**
+ * Fetches the content of a URL.
+ * @param string $location
  * @return string
  */
-function getTitleAlt($html) {
-    if (preg_match('/<title>(.*?)<\/title>/is',$html,$found)) {
-        $title = $found[1];
-        return $title;
-    } else {
-        return;
-    }
+function getFile($location)
+{
+  $ch = curl_init($location);
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, ['Connection: close']);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  return $response;
 }
 
 /**
- * http://keithdevens.com/weblog/archive/2002/Jun/03/RSSAuto-DiscoveryPHP
- * public domain
+ * Finds the RSS feed URL from the HTML source.
+ * @param string $html
+ * @param string $location
+ * @return string|false
  */
-function getFile($location){
-    $ch = curl_init($location);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Connection: close'));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-    $response = curl_exec($ch);
-    curl_close($ch);
-    return $response;
+function getRSSLocation($html, $location)
+{
+  if (!$html || !$location) {
+    return false;
+  }
+
+  preg_match_all('/<link\s+(.*?)\s*\/?>/si', $html, $matches);
+  $links = $matches[1];
+  $final_links = [];
+
+  foreach ($links as $link) {
+    $attributes = preg_split('/\s+/s', $link);
+    $final_link = [];
+
+    foreach ($attributes as $attribute) {
+      $att = preg_split('/\s*=\s*/s', $attribute, 2);
+      if (isset($att[1])) {
+        $att[1] = preg_replace('/([\'"]?)(.*)\1/', '$2', $att[1]);
+        $final_link[strtolower($att[0])] = $att[1];
+      }
+    }
+    $final_links[] = $final_link;
+  }
+
+  foreach ($final_links as $final_link) {
+    if (strtolower($final_link['rel']) == 'alternate') {
+      if (strtolower($final_link['type']) == 'application/rss+xml' || strtolower($final_link['type']) == 'text/xml') {
+        return absolutizeUrl($final_link['href'], $location);
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
- * http://keithdevens.com/weblog/archive/2002/Jun/03/RSSAuto-DiscoveryPHP
- * public domain
+ * Converts a relative URL to an absolute URL.
+ * @param string $href
+ * @param string $location
+ * @return string
  */
-function getRSSLocation($html, $location){
-    if(!$html or !$location){
-        return false;
-    }else{
-        #search through the HTML, save all <link> tags
-        # and store each link's attributes in an associative array
-        preg_match_all('/<link\s+(.*?)\s*\/?>/si', $html, $matches);
-        $links = $matches[1];
-        $final_links = array();
-        $link_count = count($links);
-        for($n=0; $n<$link_count; $n++){
-            $attributes = preg_split('/\s+/s', $links[$n]);
-            foreach($attributes as $attribute){
-                $att = preg_split('/\s*=\s*/s', $attribute, 2);
-                if(isset($att[1])){
-                    $att[1] = preg_replace('/([\'"]?)(.*)\1/', '$2', $att[1]);
-                    $final_link[strtolower($att[0])] = $att[1];
-                }
-            }
-            $final_links[$n] = $final_link;
-        }
-        #now figure out which one points to the RSS file
-        for($n=0; $n<$link_count; $n++){
-            if(strtolower($final_links[$n]['rel']) == 'alternate'){
-                if(strtolower($final_links[$n]['type']) == 'application/rss+xml'){
-                    $href = $final_links[$n]['href'];
-                }
-                if(!$href and strtolower($final_links[$n]['type']) == 'text/xml'){
-                    #kludge to make the first version of this still work
-                    $href = $final_links[$n]['href'];
-                }
-                if($href){
-                    if(strstr($href, "http://") !== false){ #if it's absolute
-                        $full_url = $href;
-                    }else{ #otherwise, 'absolutize' it
-                        $url_parts = parse_url($location);
-                        #only made it work for http:// links. Any problem with this?
-                        $full_url = "http://$url_parts[host]";
-                        if(isset($url_parts['port'])){
-                            $full_url .= ":$url_parts[port]";
-                        }
-                        if($href{0} != '/'){ #it's a relative link on the domain
-                            $full_url .= dirname($url_parts['path']);
-                            if(substr($full_url, -1) != '/'){
-                                #if the last character isn't a '/', add it
-                                $full_url .= '/';
-                            }
-                        }
-                        $full_url .= $href;
-                    }
-                    return $full_url;
-                }
-            }
-        }
-        return false;
+function absolutizeUrl($href, $location)
+{
+  if (strpos($href, "http://") !== false || strpos($href, "https://") !== false) {
+    return $href;
+  }
+
+  $url_parts = parse_url($location);
+  $full_url = "{$url_parts['scheme']}://{$url_parts['host']}";
+
+  if (isset($url_parts['port'])) {
+    $full_url .= ":{$url_parts['port']}";
+  }
+
+  if ($href[0] != '/') {
+    $full_url .= dirname($url_parts['path']);
+    if (substr($full_url, -1) != '/') {
+      $full_url .= '/';
     }
+  }
+
+  return $full_url . $href;
+}
+
+/* ================================
+ *            Execution
+ * ================================ */
+
+try {
+  $inHandle = openFile(INPUT_FILE, "r");
+  $outHandle = openFile(OUTPUT_FILE, "a");
+
+  fwrite($outHandle, opmlHeader(OPML_TITLE, OPML_OWNER_NAME, OPML_OWNER_EMAIL));
+
+  while (!feof($inHandle)) {
+    $buffer = fgets($inHandle, 4096);
+    processUrl($buffer, $outHandle);
+  }
+
+  fwrite($outHandle, opmlFooter());
+
+  fclose($inHandle);
+  fclose($outHandle);
+
+  echo "\nAll done :)\n";
+} catch (Exception $e) {
+  echo 'Error: ' . $e->getMessage() . "\n";
 }
