@@ -53,6 +53,7 @@ function openFile(string $filename, string $mode)
  */
 function processUrl(string $url, $outHandle): void
 {
+  $url = convertToHttps($url);
   $source = fetchContent($url);
   $rssURL = getRSSLocation($source, $url);
   $rssTitle = htmlentities(getTitleAlt($source));
@@ -63,6 +64,16 @@ function processUrl(string $url, $outHandle): void
   } else {
     echo "Fail on: " . $url;
   }
+}
+
+/**
+ * Converts a URL from http to https if necessary.
+ * @param string $url
+ * @return string
+ */
+function convertToHttps(string $url): string
+{
+  return preg_replace('/^http:\/\//i', 'https://', $url);
 }
 
 /**
