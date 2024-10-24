@@ -54,7 +54,7 @@ function openFile(string $filename, string $mode)
 function processUrl(string $url, $outHandle): void
 {
   $url = convertToHttps($url);
-  $source = fetchContent($url);
+  $source = fetchHeadContent($url);
   if (!$source) {
     echo "Failed to fetch content for: " . $url . "\n";
     return;
@@ -81,20 +81,31 @@ function convertToHttps(string $url): string
 }
 
 /**
- * Fetches the content of a URL.
+ * Fetches the <head> content of a URL.
  * @param string $url
  * @return string
  */
-function fetchContent(string $url): string
+function fetchHeadContent(string $url): string
 {
+  $content = '';
   $ch = curl_init($url);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
   curl_setopt($ch, CURLOPT_HTTPHEADER, ['Connection: close']);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
   curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-  $response = curl_exec($ch);
+  curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use (&$content) {
+    $content .= $chunk;
+    // Stop once </head> is found
+    if (stripos($content, '</head>') !== false) {
+      return -1; // Stop cURL early
+    }
+    return strlen($chunk);
+  });
+
+  curl_exec($ch);
   curl_close($ch);
-  return $response ?: '';
+
+  return $content;
 }
 
 /**
