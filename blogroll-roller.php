@@ -54,11 +54,15 @@ function openFile(string $filename, string $mode)
 function processUrl(string $url, $outHandle): void
 {
   $url = convertToHttps($url);
-  $source = fetchHeadContent($url);
-  if (!$source) {
-    echo "Failed to fetch content for: " . $url . "\n";
+  $result = fetchHeadContent($url);
+  $source = $result['content'];
+  $error = $result['error'];
+
+  if ($error) {
+    echo "Failed to fetch content for: " . $url . " - Error: " . $error . "\n";
     return;
   }
+
   $rssURL = getRSSLocation($source, $url);
   $rssTitle = htmlentities(getTitleAlt($source));
 
@@ -66,7 +70,7 @@ function processUrl(string $url, $outHandle): void
     $entryOut = opmlEntry($rssURL, $rssTitle ?: $rssURL);
     fwrite($outHandle, $entryOut);
   } else {
-    echo "Fail on: " . $url;
+    echo "No RSS feed found for: " . $url . "\n";
   }
 }
 
@@ -83,11 +87,12 @@ function convertToHttps(string $url): string
 /**
  * Fetches the <head> content of a URL.
  * @param string $url
- * @return string
+ * @return array
  */
-function fetchHeadContent(string $url): string
+function fetchHeadContent(string $url): array
 {
   $content = '';
+  $error = '';
   $ch = curl_init($url);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
   curl_setopt($ch, CURLOPT_HTTPHEADER, ['Connection: close']);
@@ -102,10 +107,13 @@ function fetchHeadContent(string $url): string
     return strlen($chunk);
   });
 
-  curl_exec($ch);
+  $response = curl_exec($ch);
+  if (curl_errno($ch)) {
+    $error = curl_error($ch);
+  }
   curl_close($ch);
 
-  return $content;
+  return ['content' => $content, 'error' => $error];
 }
 
 /**
