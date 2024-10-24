@@ -1,6 +1,8 @@
 <?php
+
 /*
- * @author @skinofstars Kevin Carmody
+ * @author @dylan-k Dylan Kinnett
+ * forked from code by @skinofstars Kevin Carmody
  * GPLv3 - http://www.gnu.org/copyleft/gpl.html
  *
  * This is a command line app with no flags
@@ -12,7 +14,7 @@
  */
 
 /* ================================
- *          Configuration Constants
+ *          Configuration
  * ================================ */
 
 // File config
@@ -33,13 +35,13 @@ const OPML_OWNER_EMAIL = "author@example.com";
  * @param string $filename
  * @param string $mode
  * @return resource
- * @throws Exception
+ * @throws \Exception
  */
-function openFile($filename, $mode)
+function openFile(string $filename, string $mode)
 {
   $handle = @fopen($filename, $mode);
   if (!$handle) {
-    throw new Exception('Cannot open file: ' . $filename);
+    throw new \Exception('Cannot open file: ' . $filename);
   }
   return $handle;
 }
@@ -49,9 +51,9 @@ function openFile($filename, $mode)
  * @param string $url
  * @param resource $outHandle
  */
-function processUrl($url, $outHandle)
+function processUrl(string $url, $outHandle): void
 {
-  $source = getFile($url);
+  $source = fetchContent($url);
   $rssURL = getRSSLocation($source, $url);
   $rssTitle = htmlentities(getTitleAlt($source));
 
@@ -64,21 +66,35 @@ function processUrl($url, $outHandle)
 }
 
 /**
- * Generates the OPML header.
- * @param string $opmlTitle
- * @param string $opmlOwnerName
- * @param string $opmlOwnerEmail
+ * Fetches the content of a URL.
+ * @param string $url
  * @return string
  */
-function opmlHeader($opmlTitle, $opmlOwnerName, $opmlOwnerEmail)
+function fetchContent(string $url): string
+{
+  $ch = curl_init($url);
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, ['Connection: close']);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  return $response ?: '';
+}
+
+/**
+ * Generates the OPML header.
+ * @return string
+ */
+function opmlHeader(): string
 {
   return "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n"
     . "<opml version=\"1.1\">\n"
     . " <head>\n"
-    . "     <title>{$opmlTitle}</title>\n"
+    . "     <title>" . OPML_TITLE . "</title>\n"
     . "     <dateCreated>" . date("r") . "</dateCreated>\n"
-    . "     <ownerName>{$opmlOwnerName}</ownerName>\n"
-    . "     <ownerEmail>{$opmlOwnerEmail}</ownerEmail>\n"
+    . "     <ownerName>" . OPML_OWNER_NAME . "</ownerName>\n"
+    . "     <ownerEmail>" . OPML_OWNER_EMAIL . "</ownerEmail>\n"
     . " </head>\n"
     . " <body>\n";
 }
@@ -87,7 +103,7 @@ function opmlHeader($opmlTitle, $opmlOwnerName, $opmlOwnerEmail)
  * Generates the OPML footer.
  * @return string
  */
-function opmlFooter()
+function opmlFooter(): string
 {
   return "  </body>\n</opml>";
 }
@@ -98,7 +114,7 @@ function opmlFooter()
  * @param string $feedTitle
  * @return string
  */
-function opmlEntry($feedURL, $feedTitle)
+function opmlEntry(string $feedURL, string $feedTitle): string
 {
   return "    <outline text=\"{$feedTitle}\" type=\"rss\" xmlUrl=\"{$feedURL}\"/>\n";
 }
@@ -108,7 +124,7 @@ function opmlEntry($feedURL, $feedTitle)
  * @param string $html
  * @return string|null
  */
-function getTitleAlt($html)
+function getTitleAlt(string $html): ?string
 {
   if (preg_match('/<title>(.*?)<\/title>/is', $html, $found)) {
     return $found[1];
@@ -117,29 +133,12 @@ function getTitleAlt($html)
 }
 
 /**
- * Fetches the content of a URL.
- * @param string $location
- * @return string
- */
-function getFile($location)
-{
-  $ch = curl_init($location);
-  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, ['Connection: close']);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-  $response = curl_exec($ch);
-  curl_close($ch);
-  return $response;
-}
-
-/**
  * Finds the RSS feed URL from the HTML source.
  * @param string $html
  * @param string $location
  * @return string|false
  */
-function getRSSLocation($html, $location)
+function getRSSLocation(string $html, string $location)
 {
   if (!$html || !$location) {
     return false;
@@ -180,7 +179,7 @@ function getRSSLocation($html, $location)
  * @param string $location
  * @return string
  */
-function absolutizeUrl($href, $location)
+function absolutizeUrl(string $href, string $location): string
 {
   if (strpos($href, "http://") !== false || strpos($href, "https://") !== false) {
     return $href;
@@ -211,7 +210,7 @@ try {
   $inHandle = openFile(INPUT_FILE, "r");
   $outHandle = openFile(OUTPUT_FILE, "a");
 
-  fwrite($outHandle, opmlHeader(OPML_TITLE, OPML_OWNER_NAME, OPML_OWNER_EMAIL));
+  fwrite($outHandle, opmlHeader());
 
   while (!feof($inHandle)) {
     $buffer = fgets($inHandle, 4096);
@@ -224,6 +223,6 @@ try {
   fclose($outHandle);
 
   echo "\nAll done :)\n";
-} catch (Exception $e) {
+} catch (\Exception $e) {
   echo 'Error: ' . $e->getMessage() . "\n";
 }
