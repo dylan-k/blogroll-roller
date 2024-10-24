@@ -14,13 +14,15 @@ Instructions for Use
 
 1. make a text file named `URLlist.txt`
 2. fill the text file the the URLS of blogs you'd like to follow, one URL per line. for example:
-```
+
+```txt
 https://example.com
 https://example.net
 https://example.org
 ```
-3. put `URLlist.txt` and `index.php` in the same directory on your server (i.s. `~/blogroll-roller/`)
-4. `cd` to that directory and run the command `php index.php` to make it go.
+
+3. put `URLlist.txt` and `blogroll-roller.php` in the same directory on your server (i.e. `~/blogroll-roller/`)
+4. `cd` to that directory and run the command `php blogroll-roller.php` to make it go.
 5. profit!
 
 If you have any questions about this, please use the Github Issues and I'll try to help you out. I'm not the original author of this, but I'll do my best.
