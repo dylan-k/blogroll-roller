@@ -55,6 +55,10 @@ function processUrl(string $url, $outHandle): void
 {
   $url = convertToHttps($url);
   $source = fetchContent($url);
+  if (!$source) {
+    echo "Failed to fetch content for: " . $url . "\n";
+    return;
+  }
   $rssURL = getRSSLocation($source, $url);
   $rssTitle = htmlentities(getTitleAlt($source));
 
@@ -99,7 +103,7 @@ function fetchContent(string $url): string
  */
 function opmlHeader(): string
 {
-  return "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n"
+  return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
     . "<opml version=\"1.1\">\n"
     . " <head>\n"
     . "     <title>" . OPML_TITLE . "</title>\n"
@@ -219,13 +223,15 @@ function absolutizeUrl(string $href, string $location): string
 
 try {
   $inHandle = openFile(INPUT_FILE, "r");
-  $outHandle = openFile(OUTPUT_FILE, "a");
+  $outHandle = openFile(OUTPUT_FILE, "w"); // Overwrite the file each time
 
   fwrite($outHandle, opmlHeader());
 
   while (!feof($inHandle)) {
-    $buffer = fgets($inHandle, 4096);
-    processUrl($buffer, $outHandle);
+    $buffer = trim(fgets($inHandle, 4096));
+    if (!empty($buffer)) {
+      processUrl($buffer, $outHandle);
+    }
   }
 
   fwrite($outHandle, opmlFooter());
